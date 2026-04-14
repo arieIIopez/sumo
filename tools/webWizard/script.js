@@ -365,31 +365,84 @@ on("ready", function(){
         prefix: false
     }).addTo(map);
 
-    var tileLayers = {
-        "OpenStreetMap": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            noWrap: true,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
-        }),
-        "OpenStreetMap Deutschland": L.tileLayer("https://tile.openstreetmap.de/{z}/{x}/{y}.png", {
-            noWrap: true,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
-        }),
-        "OpenTopoMap": L.tileLayer("https://a.tile.opentopomap.org/{z}/{x}/{y}.png", {
-            noWrap: true,
-            attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a> | DEM: <a href="http://viewfinderpanoramas.org/" target="_blank">SRTM</a>, <a href="https://sonny.4lima.de/" target="_blank">Sonny</a> | Map style: &copy; <a href="https://opentopomap.org" target="_blank">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank">CC-BY-SA</a>)'
-        }),
-        "ÖPNVKarte (public transport facilities)": L.tileLayer("https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png", {
-            noWrap: true,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a> | &copy; <a href="https://memomaps.de/" target="_blank">MeMoMaps</a> (<a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank">CC-BY-SA</a>)'
-        }),
-    };
+    function createDefaultTileLayers() {
+        return {
+            "OpenStreetMap": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                noWrap: true,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
+            }),
+            "OpenStreetMap Deutschland": L.tileLayer("https://tile.openstreetmap.de/{z}/{x}/{y}.png", {
+                noWrap: true,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
+            }),
+            "OpenTopoMap": L.tileLayer("https://a.tile.opentopomap.org/{z}/{x}/{y}.png", {
+                noWrap: true,
+                attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a> | DEM: <a href="http://viewfinderpanoramas.org/" target="_blank">SRTM</a>, <a href="https://sonny.4lima.de/" target="_blank">Sonny</a> | Map style: &copy; <a href="https://opentopomap.org" target="_blank">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank">CC-BY-SA</a>)'
+            }),
+            "ÖPNVKarte (public transport facilities)": L.tileLayer("https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png", {
+                noWrap: true,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a> | &copy; <a href="https://memomaps.de/" target="_blank">MeMoMaps</a> (<a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank">CC-BY-SA</a>)'
+            }),
+        };
+    }
 
-    tileLayers["OpenStreetMap"].addTo(map);
+    function createMapboxLayer(token, styleId) {
+        return L.tileLayer("https://api.mapbox.com/styles/v1/mapbox/" + styleId + "/tiles/256/{z}/{x}/{y}@2x?access_token=" + token, {
+            tileSize: 256,
+            zoomOffset: 0,
+            noWrap: true,
+            attribution: '&copy; <a href="https://www.mapbox.com/about/maps/" target="_blank">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
+        });
+    }
 
-    L.control.layers(tileLayers, null, {
-        collapsed: true,
-        position: "topleft"
-    }).addTo(map);
+    var tileLayers = createDefaultTileLayers();
+    var layerControl = null;
+
+    function applyTileLayers(preferredLayerName) {
+        Object.keys(tileLayers).forEach(function(name) {
+            if (map.hasLayer(tileLayers[name])) {
+                map.removeLayer(tileLayers[name]);
+            }
+        });
+        if (layerControl) {
+            map.removeControl(layerControl);
+        }
+        if (!tileLayers[preferredLayerName]) {
+            preferredLayerName = "OpenStreetMap";
+        }
+        tileLayers[preferredLayerName].addTo(map);
+        layerControl = L.control.layers(tileLayers, null, {
+            collapsed: true,
+            position: "topleft"
+        }).addTo(map);
+    }
+
+    function updateTileLayerConfig() {
+        var preferredLayerName = "OpenStreetMap";
+        Object.keys(tileLayers).some(function(name) {
+            if (map.hasLayer(tileLayers[name])) {
+                preferredLayerName = name;
+                return true;
+            }
+            return false;
+        });
+
+        tileLayers = createDefaultTileLayers();
+        var enableMapbox = elem("#enableMapboxLayer").checked;
+        var token = elem("#mapboxToken").value.trim();
+        var styleId = elem("#mapboxStyle").value.trim();
+
+        if (enableMapbox && token && styleId) {
+            tileLayers["Mapbox (" + styleId + ")"] = createMapboxLayer(token, styleId);
+            preferredLayerName = "Mapbox (" + styleId + ")";
+        }
+        applyTileLayers(preferredLayerName);
+    }
+
+    applyTileLayers("OpenStreetMap");
+    elem("#enableMapboxLayer").on("change", updateTileLayerConfig);
+    elem("#mapboxToken").on("change", updateTileLayerConfig);
+    elem("#mapboxStyle").on("change", updateTileLayerConfig);
 
     function setPosition(lon, lat){
         if(!lon || !lat){
